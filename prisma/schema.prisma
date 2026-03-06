@@ -1,11 +1,25 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
-  provider = "prisma-client"
-  output   = "../app/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "sqlite"
+  url      = "file:./dev.db" // Volvemos a la forma clásica y confiable
+}
+
+model Chat {
+  id        String    @id @default(cuid())
+  title     String    @default("Nuevo Chat")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  messages  Message[]
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  content   String
+  role      String   
+  createdAt DateTime @default(now())
+  chatId    String
+  chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
 }

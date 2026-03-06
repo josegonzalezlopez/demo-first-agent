@@ -1,11 +1,23 @@
 'use client';
 
-import { useChat } from '@ai-sdk/react';
-// 1. Importamos la nueva tarjeta del clima
+// 1. Asegúrate de importar 'Message' desde el SDK
+import { useChat, Message } from '@ai-sdk/react';
 import { WeatherCard, WeatherProps } from './WeatherCard';
 
-export default function Chat() {
-  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat();
+
+// 2. ESTA ES LA LISTA DE INVITADOS (La Interfaz)
+// Le decimos a TypeScript que podemos recibir un array de mensajes
+interface ChatProps {
+  initialMessages?: Message[];
+}
+
+// 3. Le pasamos ChatProps a la función principal
+export default function Chat({ initialMessages = [] }: ChatProps) {
+  
+  // 4. Se los inyectamos a la memoria del chat
+  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
+    initialMessages,
+  });
 
   return (
     <div className="flex flex-col w-full max-w-2xl py-24 mx-auto stretch">

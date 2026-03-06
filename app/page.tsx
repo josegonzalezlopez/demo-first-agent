@@ -1,16 +1,26 @@
 import Chat from './components/Chat';
+import { prisma } from './lib/prisma';
 
-export default function Home() {
+// ESTA ES LA LÍNEA MÁGICA QUE APAGA LA CACHÉ
+export const dynamic = 'force-dynamic';
+
+export default async function Home() {
+  const chat = await prisma.chat.findFirst({
+    orderBy: { createdAt: 'desc' },
+    include: { 
+      messages: { orderBy: { createdAt: 'asc' } } 
+    }
+  });
+
+  const initialMessages = chat?.messages.map(m => ({
+    id: m.id,
+    role: m.role as 'user' | 'assistant',
+    content: m.content,
+  })) || [];
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-4 bg-white">
-      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
-        <h1 className="text-4xl font-bold text-center w-full mt-10 text-black">
-          Panel de Agentes IA
-        </h1>
-      </div>
-      
-      {/* Aquí renderizamos nuestro componente cliente */}
-      <Chat />
+    <main className="min-h-screen bg-white">
+      <Chat initialMessages={initialMessages} />
     </main>
   );
 }

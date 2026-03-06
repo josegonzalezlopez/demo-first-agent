@@ -1,6 +1,7 @@
 import { createOpenAI } from '@ai-sdk/openai';
 import { streamText, tool } from 'ai';
 import { z } from 'zod';
+import { prisma } from '../../lib/prisma';
 
 const localOllama = createOpenAI({
   baseURL: 'http://localhost:11434/v1',
@@ -86,6 +87,30 @@ export async function POST(req: Request) {
       }),
     },
     maxSteps: 5,
+    async onFinish({ text }) {
+      try {
+        // 1. Buscamos el chat principal (o lo creamos si no existe)
+        let chat = await prisma.chat.findFirst({ orderBy: { createdAt: 'desc' } });
+        if (!chat) {
+          chat = await prisma.chat.create({ data: { title: 'Chat Principal' } });
+        }
+
+        // 2. Guardamos tu mensaje (el último que enviaste)
+        const userMessage = messages[messages.length - 1];
+        if (userMessage.role === 'user') {
+          await prisma.message.create({
+            data: { content: userMessage.content, role: 'user', chatId: chat.id }
+          });
+        }
+
+        // 3. Guardamos la respuesta del Agente
+        await prisma.message.create({
+          data: { content: text || '[Herramienta ejecutada]', role: 'assistant', chatId: chat.id }
+        });
+      } catch (error) {
+        console.error("Error guardando en la BD:", error);
+      }
+    }
   });
 
   return result.toDataStreamResponse();
