@@ -1,92 +1,59 @@
+// 1. Solo necesitamos estos imports (que ya están en tu package.json)
 import { createOpenAI } from '@ai-sdk/openai';
-import { streamText, tool } from 'ai';
-import { z } from 'zod';
-import { prisma } from '../../lib/prisma';
+import { streamText } from 'ai';
+import { ChromaClient } from 'chromadb';
 
+// 2. Configuramos Ollama como si fuera OpenAI (porque lo es)
 const localOllama = createOpenAI({
-  baseURL: 'http://localhost:11434/v1',
-  apiKey: 'ollama',
+  baseURL: 'http://127.0.0.1:11434/v1',
+  apiKey: 'ollama', // Ollama no la necesita, pero el SDK la pide
 });
 
-export const dynamic = 'force-dynamic';
+const chromaClient = new ChromaClient({ host: "127.0.0.1", port: 8000 });
 
-// Función auxiliar para traducir los códigos del clima de Open-Meteo a texto
-function getWeatherDescription(code: number): string {
-  if (code === 0) return 'Despejado';
-  if (code >= 1 && code <= 3) return 'Algo nublado';
-  if (code >= 45 && code <= 48) return 'Niebla';
-  if (code >= 51 && code <= 67) return 'Llovizna / Lluvia';
-  if (code >= 71 && code <= 77) return 'Nieve';
-  if (code >= 95) return 'Tormenta';
-  return 'Desconocido';
+async function getEmbedding(text: string) {
+  const response = await fetch('http://127.0.0.1:11434/api/embeddings', {
+    method: 'POST',
+    body: JSON.stringify({ model: 'nomic-embed-text', prompt: text }),
+  });
+  const data = await response.json();
+  return data.embedding;
 }
 
 export async function POST(req: Request) {
   const { messages } = await req.json();
+  const lastMessage = messages[messages.length - 1];
 
-  // 1. Analizamos tu último mensaje antes de enviarlo al LLM
-    const lastMessage = messages[messages.length - 1];
+  let contextFromDB = "";
+  try {
+    // CAMBIO AQUÍ: Le pasamos una función vacía para que no pida el paquete '@chroma-core/default-embed'
+    const collection = await chromaClient.getCollection({ 
+      name: "apuntes_unla",
+      embeddingFunction: { generate: async (texts) => [] } // <--- Esto silencia el error
+    });
     
-    // 2. Creamos el interruptor mágico
-    const hasCodeFile = lastMessage.role === 'user' && lastMessage.content.includes('=== Archivo:');
+    const queryVector = await getEmbedding(lastMessage.content);
 
+    const searchResults = await collection.query({
+      queryEmbeddings: [queryVector],
+      nResults: 3 // <--- CAMBIAMOS DE 1 A 3 para tener más contexto
+    });
 
-const result = await streamText({
-  model: localOllama('llama3.1'),
-
-  // 1. ELIMINAMOS LAS PROHIBICIONES. Un prompt limpio y amigable.
-  system: `Eres asyncReport, un asistente útil y desarrollador experto. 
-      Si el usuario te envía código, explícalo. 
-      Si el usuario te pide el clima o un cálculo, usa tus herramientas para obtener la información y luego respóndele al usuario de forma natural.`,
-
-  messages,
-
-  tools: hasCodeFile ? undefined : {
-    getWeather: tool({
-      description: 'Obtiene el clima actual en una ciudad',
-      parameters: z.object({
-        city: z.string().describe('La ciudad a consultar'),
-      }),
-      execute: async ({ city }) => {
-        // 2. TESTIGO SILENCIOSO: Esto se imprimirá en tu terminal de Fedora
-        console.log(`🛠️ EJECUTANDO HERRAMIENTA CLIMA PARA: ${city}`);
-
-        const weatherData = {
-          "Buenos Aires": { temp: "22°C", condition: "Soleado" },
-          "Bariloche": { temp: "12°C", condition: "Nublado" },
-          "Paris": { temp: "16°C", condition: "Nublado" },
-          "Cordoba": { temp: "18°C", condition: "Niebla" }
-        };
-        const defaultWeather = { temp: "20°C", condition: "Despejado" };
-        const data = weatherData[city as keyof typeof weatherData] || defaultWeather;
-
-        // 3. EL TRUCO DEFINITIVO: Datos separados para React y para el LLM
-        return {
-          city: city,
-          temp: data.temp,
-          condition: data.condition,
-          mensaje_para_el_agente: `La herramienta fue exitosa. En ${city} hace ${data.temp} y el clima está ${data.condition}. Dile esto al usuario directamente.`
-        };
-      },
-    }),
-    // ... (tu herramienta calculator queda igual) ...
-  },
-  maxSteps: hasCodeFile ? 1 : 5,
-  async onFinish({ text }) {
-    // ... (Tu código exacto de Prisma se mantiene igual aquí) ...
-    try {
-      let chat = await prisma.chat.findFirst({ orderBy: { createdAt: 'desc' } });
-      if (!chat) chat = await prisma.chat.create({ data: { title: 'Chat Principal' } });
-      const userMessage = messages[messages.length - 1];
-      if (userMessage.role === 'user') {
-        await prisma.message.create({ data: { content: userMessage.content, role: 'user', chatId: chat.id } });
-      }
-      await prisma.message.create({ data: { content: text || '[Herramienta ejecutada]', role: 'assistant', chatId: chat.id } });
-    } catch (error) {
-      console.error("Error guardando en la BD:", error);
+    // Unimos todos los fragmentos encontrados en un solo texto
+    if (searchResults.documents[0].length > 0) {
+      contextFromDB = searchResults.documents[0].join("\n\n");
+      console.log("🧠 MEMORIA AMPLIADA RECUPERADA");
     }
+  } catch (error) {
+    console.log("⚠️ Error en ChromaDB:", error);
   }
-});
 
-    return result.toDataStreamResponse();
+  // 3. CAMBIO CLAVE: Usamos 'localOllama' en lugar de 'ollama'
+  const result = await streamText({
+    model: localOllama('llama3.2'), // <--- Aquí usamos el provider que definimos arriba
+    system: `Eres asyncReport. Contexto local: ${contextFromDB}`,
+    messages,
+  });
+
+  return result.toDataStreamResponse();
 }
