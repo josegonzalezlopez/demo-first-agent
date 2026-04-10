@@ -9,16 +9,16 @@
 * **Frontend/Backend:** [Next.js 15](https://nextjs.org/) (App Router)
 * **Lenguaje:** TypeScript
 * **Orquestación de IA:** [Vercel AI SDK](https://sdk.vercel.ai/docs)
-* **Motor de Inferencia:** [Ollama](https://ollama.com/) (Modelos: `llama3.2` y `gemma4`)
+* **Motor de Inferencia:** [Ollama](https://ollama.com/) (Modelos: `gemma4:e2b-it-q4_K_M` y `llama3.2`)
 * **Base de Datos Vectorial:** [ChromaDB](https://www.trychroma.com/) (vía Podman)
 * **Embeddings:** `nomic-embed-text` (vía Ollama)
-* **Persistencia:** Prisma + SQLite
+* **Persistencia y Notas:** Prisma + SQLite / Integración nativa con Logseq (.md)
 
 ---
 
-## 💻 Entorno de Desarrollo (Fedora Linux)
+## 💻 Entorno de Desarrollo
 
-Este proyecto está optimizado para correr en Fedora con aceleración por hardware:
+Este proyecto está optimizado para correr en Linux con aceleración por hardware estricta:
 
 * **OS:** Fedora Linux 43 (KDE Plasma)
 * **GPU:** NVIDIA GeForce GTX 1650 Super (4GB VRAM)
@@ -27,64 +27,31 @@ Este proyecto está optimizado para correr en Fedora con aceleración por hardwa
 
 ---
 
-## ⚙️ Configuración del Sistema
+## ✨ Funcionalidades Clave Implementadas
 
-### 1. Preparación de la GPU (NVIDIA)
-Para asegurar que Ollama utilice los núcleos CUDA y no sature el CPU:
-```bash
-sudo dnf install akmod-nvidia xorg-x11-drv-nvidia-cuda
-# Reiniciar y verificar conectividad CUDA
-nvidia-smi
-```
+1. **RAG Vectorial y Gestor de Memoria:** Endpoints dedicados para ingesta de documentos y una UI para auditar/eliminar fragmentos de la base vectorial ChromaDB.
+2. **Renderizado Avanzado (Markdown & Mermaid):** El chat soporta renderizado nativo de código fuente (Syntax Highlighting), matemáticas (LaTeX/KaTeX) y generación de diagramas arquitectónicos con Mermaid.
+3. **Selección Dinámica de Modelos:** Permite alternar en tiempo de ejecución entre motores LLM (ej. Llama 3.2 para velocidad, Gemma 4 para razonamiento arquitectónico complejo).
+4. **Exportación a Logseq:** Botón integrado en la UI para empaquetar respuestas estructuradas del LLM con frontmatter y descargarlas directamente a una bóveda de notas local.
 
-### 2. Infraestructura de Contenedores (ChromaDB)
-Levantar la base de datos vectorial en el puerto 8000:
-```bash
-podman run -d \
-  --name chromadb \
-  -p 8000:8000 \
-  docker.io/chromadb/chroma:latest
-```
-
-### 3. Modelos de IA
-Descargar los pesos de los modelos necesarios en el motor local:
-```bash
-ollama pull llama3.2
-ollama pull nomic-embed-text
-```
-
----
-
-## 🧠 Arquitectura RAG Implementada
-
-
-
-El flujo de recuperación de información se ha diseñado para evitar dependencias pesadas y conflictos de binarios en el servidor:
-
-1.  **Vectorización:** La consulta del usuario se convierte a un vector usando `nomic-embed-text`.
-2.  **Búsqueda Semántica:** Se consultan los **Top 3** resultados en ChromaDB (`nResults: 3`) para garantizar un contexto completo e hilado.
-3.  **Inyección de Contexto:** Los documentos recuperados se inyectan dinámicamente en el `system prompt` antes de la inferencia.
-4.  **Inferencia:** El LLM genera la respuesta final basándose exclusivamente en la memoria recuperada.
 
 ---
 
 ## ⚠️ Troubleshooting & Lecciones Aprendidas
 
 ### Bypass de Binarios ONNX (`onnxruntime-node`)
-* **Problema:** La librería `chromadb` intenta cargar binarios nativos de Mac/Darwin (`@chroma-core/default-embed`) incluso en entornos Linux, provocando errores de compilación críticos (Error 500) en Webpack/Next.js.
-* **Solución:** Se implementó una función de embedding "dummy" (`embeddingFunction: { generate: async () => [] }`) para silenciar la inicialización interna de ChromaDB. Los vectores reales se generan manualmente vía Ollama y se pasan directo al método `query`.
+* **Problema:** La librería `chromadb` intenta cargar binarios nativos de Mac/Darwin (`@chroma-core/default-embed`) en Linux, provocando Error 500 en Next.js.
+* **Solución:** Se implementó una función de embedding "dummy" (`embeddingFunction: { generate: async () => [] }`). Los vectores reales se generan manualmente vía Ollama y se pasan al método `query`.
 
-### Resolución de Host en Fedora
-* **Problema:** `localhost` resuelve intermitentemente a IPv6 (`::1`), lo que impide la conexión con el contenedor de Podman escuchando en IPv4.
-* **Solución:** Forzar el uso de `127.0.0.1` en la instanciación de los clientes de Chroma y Ollama.
-
-### Optimización de VRAM
-* Para tarjetas de **4GB de VRAM**, se recomienda estrictamente el uso de `llama3.2` o versiones cuantizadas (Q4_K_M) para mantener una latencia de respuesta ágil y evitar el offloading masivo a la memoria RAM del sistema.
+### Optimización de VRAM (4GB)
+* Para tarjetas limitadas a 4GB de VRAM, el uso de modelos cuantizados a 4-bits (`gemma4:e2b-it-q4_K_M`) es mandatorio. El sistema delega inteligentemente las capas excedentes a la RAM del sistema (Offloading) manteniendo una latencia aceptable para tareas complejas.
 
 ---
 
 ## 🚀 Roadmap
 
-- [ ] **Ingesta Dinámica:** Creación de endpoint `/api/ingest` para carga de PDFs y apuntes universitarios desde la UI.
-- [ ] **Gestor de Memoria:** Interfaz visual para auditar y borrar fragmentos específicos de la base vectorial.
-- [ ] **Agentic Workflow:** Implementación de llamadas a herramientas (Tools) para consultas externas en tiempo real cuando el contexto local sea insuficiente.
+- [x] Ingesta Dinámica y Gestor de Memoria Vectorial.
+- [x] Renderizado de código, matemática (LaTeX) y diagramas (Mermaid).
+- [x] Integración de Exportación a Logseq.
+- [ ] **Persistencia de Sesiones:** Conectar la UI del chat con SQLite/Prisma para recuperar el historial de conversaciones al recargar la aplicación.
+- [ ] **Agentic Workflow:** Expansión de herramientas (Tools) para consultas externas en tiempo real (APIs financieras, clima, noticias).
