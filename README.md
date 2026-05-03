@@ -102,5 +102,21 @@ Visita `http://localhost:3000` en tu navegador. ¡El Agente ya está listo para 
 - [x] Ingesta Dinámica y Gestor de Memoria Vectorial.
 - [x] Renderizado de código, matemática (LaTeX) y diagramas (Mermaid).
 - [x] Integración de Exportación de Notas a Logseq.
+- [x] **Agentic Workflow 2.0 (Parcial):** Herramienta `getTechNews` para consultar Hacker News en tiempo real.
 - [ ] **Persistencia Estructural:** Implementación de Prisma + SQLite para almacenar sesiones de chat (hilos conversacionales), permitiendo al usuario retomar arquitecturas discutidas en días anteriores.
-- [ ] **Agentic Workflow 2.0:** Expansión de herramientas (Tools) para consultas externas en tiempo real de forma asíncrona.
+- [ ] **Agentic Workflow 2.0 (Completo):** Expansión de herramientas (Tools) adicionales para consultas externas asíncronas.
+
+---
+
+## 📊 Estado del Proyecto
+
+| Funcionalidad | Estado |
+|--------------|--------|
+| RAG Vectorial (ChromaDB) | ✅ Implementada |
+| Gestor de Memoria UI | ✅ Implementada |
+| Ingesta de documentos | ✅ Implementada |
+| Renderizado Mermaid/LaTeX | ✅ Implementada |
+| Selección dinámica de modelos | ✅ Implementada |
+| Exportación a Logseq | ✅ Implementada |
+| Herramienta getTechNews | ✅ Implementada |
+| Persistencia de sesiones (Prisma) | ⚠️ Schema definido, sin conexión al chat |

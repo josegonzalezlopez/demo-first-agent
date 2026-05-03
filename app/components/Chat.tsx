@@ -19,24 +19,38 @@ const MermaidChart = ({ chart }: { chart: string }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Inicializamos mermaid con un tema oscuro que hace match con tu UI
+    // 1. GUARDIA: Si el chart está vacío o es undefined (típico en streaming inicial), no hacemos nada.
+    if (!chart || chart.trim() === '') return;
+
     mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+    
     if (containerRef.current) {
-      // ID dinámico para evitar conflictos si hay varios gráficos
       const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
-      mermaid.render(id, chart)
-        .then(({ svg }) => {
-          if (containerRef.current) containerRef.current.innerHTML = svg;
-        })
-        .catch(e => console.error("Error renderizando gráfico:", e));
+      
+      // 2. TRY/CATCH: Atrapamos errores de parseo mientras el LLM escribe el código a medias
+      try {
+        mermaid.render(id, chart)
+          .then(({ svg }) => {
+            if (containerRef.current) containerRef.current.innerHTML = svg;
+          })
+          .catch((e) => {
+            // Silenciamos el error en consola. Es normal que falle mientras se transmite el texto.
+            // console.warn("Esperando más tokens para el gráfico..."); 
+          });
+      } catch (error) {
+        // Ignoramos errores sincrónicos de inicialización incompleta
+      }
     }
   }, [chart]);
 
   return (
     <div 
       ref={containerRef} 
-      className="my-6 flex justify-center bg-[#1E1E1E] p-6 rounded-xl shadow-lg border border-gray-700 overflow-x-auto" 
-    />
+      className="my-6 flex justify-center bg-[#1E1E1E] p-6 rounded-xl shadow-lg border border-gray-700 overflow-x-auto min-h-[100px] items-center text-gray-500 text-sm"
+    >
+      {/* Mensaje temporal mientras se carga el gráfico */}
+      {!chart || chart.trim() === '' ? 'Generando diagrama...' : ''}
+    </div>
   );
 };
 
@@ -116,7 +130,7 @@ tags: #asyncReport #tech-lead #arquitectura #ai-notes
       <div className="shrink-0 p-6 border-b border-gray-200 flex justify-between items-end bg-white/80 backdrop-blur-md z-10">
         <div>
           <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Chat Agente</h1>
-          <p className="text-sm text-gray-500 mt-1">Agente Local • Memoria Vectorial • Logseq</p>
+          <p className="text-sm text-gray-500 mt-1">Agente Local • Memoria Vectorial • Exportacion Markdown</p>
         </div>
         
         <div className="flex flex-col">
